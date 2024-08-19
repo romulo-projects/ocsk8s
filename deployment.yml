@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocsapplication
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocsapplication
+  template:
+    metadata:
+      labels:
+        app: ocsapplication
+    spec:
+      containers:
+      - name: ocsinventory-server
+        image: ocsinventory/ocsinventory-docker-image:2.12.2
+        ports:
+        - containerPort: 80
+        env:
+        - name: OCS_DB_SERVER
+          value: "ocsinventory-db"
+        - name: OCS_DB_USER
+          value: "ocsuser"
+        - name: OCS_DB_PASS
+          value: "ocspass"
+        - name: OCS_DB_NAME
+          value: "ocsweb"
+        - name: OCS_SSL_ENABLED
+          value: "0"
+        - name: OCS_DBI_PRINT_ERROR
+          value: "0"
+        volumeMounts:
+        - name: perlcomdata
+          mountPath: /etc/ocsinventory-server
+        - name: ocsreportsdata
+          mountPath: /usr/share/ocsinventory-reports/ocsreports/extensions
+        - name: varlibdata
+          mountPath: /var/lib/ocsinventory-reports
+        - name: httpdconfdata
+          mountPath: /etc/apache2/conf-available
+        - name: profilesconfdata
+          mountPath: /usr/share/ocsinventory-reports/ocsreports/config/profiles
+      volumes:
+      - name: perlcomdata
+        persistentVolumeClaim:
+          claimName: perlcomdata
+      - name: ocsreportsdata
+        persistentVolumeClaim:
+          claimName: ocsreportsdata
+      - name: varlibdata
+        persistentVolumeClaim:
+          claimName: varlibdata
+      - name: httpdconfdata
+        persistentVolumeClaim:
+          claimName: httpdconfdata
+      - name: profilesconfdata
+        persistentVolumeClaim:
+          claimName: profilesconfdata
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocsdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocsdb
+  template:
+    metadata:
+      labels:
+        app: ocsdb
+    spec:
+      containers:
+      - name: ocsinventory-db
+        image: mysql:8.0
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "rootpass"
+        - name: MYSQL_USER
+          value: "ocsuser"
+        - name: MYSQL_PASSWORD
+          value: "ocspass"
+        - name: MYSQL_DATABASE
+          value: "ocsweb"
+        volumeMounts:
+        - name: sqldata
+          mountPath: /var/lib/mysql
+        - name: sqlscripts
+          mountPath: /docker-entrypoint-initdb.d
+      volumes:
+      - name: sqldata
+        persistentVolumeClaim:
+          claimName: sqldata
+      - name: sqlscripts
+        persistentVolumeClaim:
+          claimName: sqlscripts
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocsproxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocsproxy
+  template:
+    metadata:
+      labels:
+        app: ocsproxy
+    spec:
+      containers:
+      - name: ocsinventory-proxy
+        image: nginx
+        ports:
+        - containerPort: 80
+        - containerPort: 443
+        env:
+        - name: LISTEN_PORT
+          value: "80"
+        - name: PORT_TYPE
+          value: ""
+        - name: SSL_CERT
+          value: "ocs-dummy.crt"
+        - name: SSL_KEY
+          value: "ocs-dummy.key"
+        - name: API_AUTH_FILE
+          value: "ocsapi.htpasswd"
+        - name: READ_TIMEOUT
+          value: "300"
+        - name: CONNECT_TIMEOUT
+          value: "300"
+        - name: SEND_TIMEOUT
+          value: "300"
+        - name: MAX_BODY_SIZE
+          value: "1G"
+        volumeMounts:
+        - name: nginxconf
+          mountPath: /etc/nginx/templates
+        - name: nginxcerts
+          mountPath: /etc/nginx/certs
+        - name: nginxauth
+          mountPath: /etc/nginx/auth
+      volumes:
+      - name: nginxconf
+        persistentVolumeClaim:
+          claimName: nginxconf
+      - name: nginxcerts
+        persistentVolumeClaim:
+          claimName: nginxcerts
+      - name: nginxauth
+        persistentVolumeClaim:
+          claimName: nginxauth
